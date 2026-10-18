@@ -67,8 +67,8 @@ body[data-view="view-auth"] .keys{opacity:.45;pointer-events:none}
 .key b{display:block;font-size:15px;letter-spacing:1px}.key:active{transform:translateY(4px);box-shadow:0 1px 0 #6d5a37}
 .grille{height:34px;border-radius:6px;background:repeating-linear-gradient(90deg,#2a1a0c 0 3px,transparent 3px 7px);opacity:.55}
 .serial{text-align:center;font:9px 'Special Elite',monospace;letter-spacing:1px;color:#5a4524;padding:0 6px}
-#view-override{background:#000;align-items:center;text-align:center;justify-content:space-between;padding:12px}
-.eye-box{position:relative;width:100%;flex:none;aspect-ratio:1280/1024;max-height:48%;overflow:hidden;-webkit-mask-image:radial-gradient(ellipse 52% 46% at 50% 49%,#000 50%,transparent 100%);mask-image:radial-gradient(ellipse 52% 46% at 50% 49%,#000 50%,transparent 100%)}
+#view-override{background:#000;align-items:center;text-align:center;justify-content:center;gap:18px;padding:12px}
+.eye-box{position:relative;width:100%;flex:none;aspect-ratio:1280/1024;max-height:62%;overflow:hidden;-webkit-mask-image:radial-gradient(ellipse 52% 46% at 50% 49%,#000 50%,transparent 100%);mask-image:radial-gradient(ellipse 52% 46% at 50% 49%,#000 50%,transparent 100%)}
 .creepy-eye-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:contrast(1.2) saturate(1.6) drop-shadow(0 0 16px rgba(57,255,20,.5));animation:look 5s steps(1) infinite}
 .lid{position:absolute;left:0;right:0;height:51%;background:#000;z-index:2}.lid.t{top:0;animation:lt 5.2s infinite}.lid.b{bottom:0;animation:lb 5.2s infinite}
 @keyframes lt{0%{transform:translateY(0)}6%,88%{transform:translateY(-100%)}92%{transform:translateY(-6%)}96%,100%{transform:translateY(-100%)}}
@@ -84,6 +84,11 @@ body[data-view="view-auth"] .keys{opacity:.45;pointer-events:none}
 body.strobe .viewport{filter:invert(1)}
 @media(max-height:640px){.logo-hero{width:70px}.auth-title{font-size:28px}.radar{width:min(46vw,170px)}}
 @media(prefers-reduced-motion:reduce){.sweep,.logo-hero,.screen-shaking,.creepy-eye-img,.lid,.eerie-caption{animation:none!important}.lid{display:none}}
+.viewport{transition:none}.viewport.hit{transform:translateX(var(--jx,3px)) skewX(-1.2deg);filter:brightness(1.7) contrast(1.3) saturate(1.4)}
+.viewport.hit .eye-box{filter:brightness(1.9) drop-shadow(0 0 22px #39ff14)}
+body.hacking #view-cockpit{animation:corr .16s steps(2) infinite}
+@keyframes corr{0%{transform:translate(-3px,1px) skewX(2deg);filter:hue-rotate(60deg) contrast(1.3)}50%{transform:translate(3px,-2px);filter:hue-rotate(100deg) brightness(1.4)}100%{transform:translate(0,2px) skewX(-2deg);filter:hue-rotate(80deg)}}
+body.hacking .viewport:after{background:repeating-linear-gradient(0deg,rgba(57,255,20,.18) 0 2px,rgba(0,0,0,.4) 2px 4px)}
 </style>
 </head>
 <body data-view="view-auth">
@@ -121,8 +126,6 @@ body.strobe .viewport{filter:invert(1)}
     <section id="view-override" class="view">
       <div class="eye-box"><img id="creepy-eye-img" class="creepy-eye-img" alt=""><i class="lid t"></i><i class="lid b"></i></div>
       <div class="eerie-caption" id="glitch-phrase">TI VEDO.</div>
-      <div class="manifesto-box" id="manifesto"></div>
-      <div class="doom-foot-note">● PROTOCOLLO LATVERIA ATTIVO // OCCHIO DI DOOM</div>
     </section>
   </div></div>
   <footer class="keys">
@@ -166,31 +169,43 @@ body.strobe .viewport{filter:invert(1)}
       });
     }
 
+    function hitFx() {
+      var v = document.querySelector('.viewport'); if (!v) return;
+      v.style.setProperty('--jx', (Math.random() * 10 - 5).toFixed(1) + 'px');
+      v.classList.add('hit'); setTimeout(function() { v.classList.remove('hit'); }, 90);
+    }
+    function reactTo(an, src) {
+      var d = new Uint8Array(256), last = 0, run = true;
+      src.onended = function() { run = false; };
+      (function f() {
+        if (!run) return;
+        an.getByteTimeDomainData(d);
+        var e = 0; for (var i = 0; i < d.length; i++) { var x = (d[i] - 128) / 128; e += x * x; }
+        var now = performance.now();
+        if (Math.sqrt(e / d.length) > 0.1 && now - last > 180) { last = now; hitFx(); }
+        requestAnimationFrame(f);
+      })();
+    }
     function playCreepyAudio() {
       var ctx = getAudio();
       if (!ctx) return;
       if (creepyBuffer) {
-        var src = ctx.createBufferSource();
-        src.buffer = creepyBuffer;
-        var gain = ctx.createGain();
-        gain.gain.value = 0.9;
-        src.connect(gain);
-        gain.connect(ctx.destination);
-        src.start();
+        var src = ctx.createBufferSource(); src.buffer = creepyBuffer;
+        var gain = ctx.createGain(); gain.gain.value = 0.9;
+        var an = ctx.createAnalyser(); an.fftSize = 256;
+        src.connect(an); an.connect(gain); gain.connect(ctx.destination);
+        src.start(); reactTo(an, src);
       } else {
-        // Fallback synthetic glitch if decoding pending
         for (var k = 0; k < 4; k++) {
           (function(step) {
             setTimeout(function() {
-              var now = ctx.currentTime;
-              var osc = ctx.createOscillator(), g = ctx.createGain();
+              var now = ctx.currentTime, osc = ctx.createOscillator(), g = ctx.createGain();
               osc.type = 'sawtooth';
               osc.frequency.setValueAtTime(1400 - step * 220, now);
               osc.frequency.exponentialRampToValueAtTime(120, now + 0.35);
-              g.gain.setValueAtTime(0.4, now);
-              g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-              osc.connect(g); g.connect(ctx.destination);
-              osc.start(now); osc.stop(now + 0.35);
+              g.gain.setValueAtTime(0.4, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+              osc.connect(g); g.connect(ctx.destination); osc.start(now); osc.stop(now + 0.35);
+              hitFx();
             }, step * 250);
           })(k);
         }
@@ -263,7 +278,7 @@ body.strobe .viewport{filter:invert(1)}
       document.getElementById('txt-radar-status').textContent = "PURGE EFFETTUATO // CANALE PULITO";
     };
 
-    var engaged = false, wl = null, supabaseClient = null, realtimeChannel = null, lastDoom = 0, phraseTimer = null;
+    var engaged = false, wl = null, supabaseClient = null, realtimeChannel = null, lastDoom = 0;
     var hasVib = !!navigator.vibrate;
     if (!hasVib) document.getElementById('hint-vib').style.display = 'block';
     function setLed(id, cls) { var e = document.getElementById(id); if (e) e.className = cls || ''; }
@@ -294,12 +309,6 @@ body.strobe .viewport{filter:invert(1)}
       if (!wl) keepAwake();
       initRealtime(true);
     });
-    var phrases = ["TI VEDO.", "VI VEDO TUTTI.", "LATVERIA SA.", "NESSUNA VIA DI FUGA.", "DOOM È QUI."];
-    var MAN = ">> CONTROLLO T.V.A. REVOCATO.\nNON SEI STATO TU AD APRIRE\nLA CONNESSIONE.\nHO TROVATO TUTTI I VOSTRI DISPOSITIVI.\n\nGUARDA IL TERMINALE PRINCIPALE.\nNON CI SARÀ UN SECONDO AVVISO.";
-    function typeManifesto() {
-      var el = document.getElementById('manifesto'), i = 0; el.textContent = '';
-      var iv = setInterval(function() { el.textContent = MAN.slice(0, ++i) + (i % 2 ? '█' : ''); if (i >= MAN.length) { clearInterval(iv); el.textContent = MAN; } }, 45);
-    }
     function pulseAlarm(pattern) {
       if (hasVib) { navigator.vibrate(pattern); return; }
       var t = 0; pattern.forEach(function(ms, k) {
@@ -308,20 +317,16 @@ body.strobe .viewport{filter:invert(1)}
       });
     }
     function triggerDoomTakeover() {
-      if (Date.now() - lastDoom < 6000) return; lastDoom = Date.now();
+      if (Date.now() - lastDoom < 8000) return; lastDoom = Date.now();
       var ch = document.getElementById('chassis'), fl = document.getElementById('flash');
-      document.body.classList.add('overridden'); ch.classList.add('screen-shaking');
+      document.body.classList.add('overridden', 'hacking'); ch.classList.add('screen-shaking');
       fl.classList.add('on'); setTimeout(function() { fl.classList.remove('on'); }, 140);
-      document.getElementById('txt-unit').textContent = 'ALLERTA // OCCHIO DI DOOM';
-      setLed('led-sync', 'ok'); setLed('led-pwr', '');
       playCreepyAudio();
-      pulseAlarm([200, 100, 200, 100, 400, 150, 600]);
-      switchView('view-override'); typeManifesto();
-      clearInterval(phraseTimer);
-      phraseTimer = setInterval(function() { phraseIdx = (phraseIdx + 1) % phrases.length; var e = document.getElementById('glitch-phrase'); if (e) e.textContent = phrases[phraseIdx]; }, 2200);
-      setTimeout(function() { ch.classList.remove('screen-shaking'); }, 4000);
+      pulseAlarm([200, 100, 200, 100, 400, 150, 600, 200, 300]);
+      setTimeout(function() { document.body.classList.remove('hacking'); switchView('view-override'); }, 2600);
+      setTimeout(function() { ch.classList.remove('screen-shaking'); }, 5200);
     }
-    var phraseIdx = 0;
+
 
     // Secret Director Trigger (5 taps on clock triggers override)
     var secretTaps = 0, tapTimer = null;
